@@ -1,6 +1,7 @@
 import os
 import re
 import asyncio
+from decimal import Decimal, InvalidOperation
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
@@ -15,14 +16,23 @@ tg_app = Application.builder().token(BOT_TOKEN).build()
 
 MATH_PATTERN = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*([\+\-\*/])\s*(-?\d+(?:\.\d+)?)\s*$")
 
+def format_decimal(value: Decimal) -> str:
+    if value == value.to_integral():
+        return str(int(value))
+    return format(value.normalize(), "f").rstrip("0").rstrip(".")
+
 def calculate_expression(text: str):
     m = MATH_PATTERN.fullmatch(text.strip())
     if not m:
         return None
 
-    a, op, b = m.groups()
-    a = float(a)
-    b = float(b)
+    a_str, op, b_str = m.groups()
+
+    try:
+        a = Decimal(a_str)
+        b = Decimal(b_str)
+    except InvalidOperation:
+        return None
 
     if op == "+":
         r = a + b
@@ -37,7 +47,7 @@ def calculate_expression(text: str):
     else:
         return None
 
-    return str(int(r)) if r.is_integer() else str(r)
+    return format_decimal(r)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:
